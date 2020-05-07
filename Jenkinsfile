@@ -1,36 +1,46 @@
 pipeline {
-    
-
+    agent {
+        kubernetes {
+            defaultContainer 'jnlp'
+            yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    some-label: some-label-value
+spec:
+  containers:
+  - name: maven
+    image: maven:alpine
+    command:
+    - cat
+    tty: true
+  - name: busybox
+    image: busybox
+    command:
+    - cat
+    tty: true
+"""
+        }
+    }
     stages {
-        stage('Compile') {
+        stage('Run in Maven container') {
             steps {
-                sh 'go build'
+                container('maven') {
+                    sh 'mvn -version'
+                }
             }
         }
-        stage('Test') {
-            environment {
-                CODECOV_TOKEN = credentials('codecov_token')
-            }
+        stage('Run in Busybox container') {
             steps {
-                sh 'go test ./... -coverprofile=coverage.txt'
-                sh "curl -s https://codecov.io/bash | bash -s -"
+                container('busybox') {
+                    sh '/bin/busybox'
+                }
             }
         }
-        stage('Code Analysis') {
+        stage('Run in default container') {
             steps {
-                sh 'curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | bash -s -- -b $GOPATH/bin v1.12.5'
-                sh 'golangci-lint run'
-            }
-        }
-        stage('Release') {
-            when {
-                buildingTag()
-            }
-            environment {
-                GITHUB_TOKEN = credentials('github_token')
-            }
-            steps {
-                sh 'curl -sL https://git.io/goreleaser | bash'
+                sh "echo 'Running in default container'"
             }
         }
     }
